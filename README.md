@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Finansial Aku
 
-## Getting Started
+PWA untuk mencatat dan memahami keuangan rumah tangga bersama pasangan. UI memakai Bahasa Indonesia, IDR, dan zona waktu perangkat (default penggunaan Asia/Jakarta).
 
-First, run the development server:
+## Yang sudah tersedia
+
+- Dashboard saldo, arus kas, grafik tren, kategori, dan transaksi terbaru.
+- Pemasukan, pengeluaran, transfer antarakun, pencarian, filter, edit, dan soft delete.
+- Akun bank/e-wallet/tunai dan anggaran per kategori.
+- Dua akun pengguna dalam satu household lewat kode undangan sekali pakai.
+- Inbox realtime dan Web Push untuk transaksi baru dari pasangan.
+- Bot Telegram pribadi dengan parser template, klasifikasi GLM gratis, konfirmasi transaksi, dan `/undo`.
+- Supabase Auth, PostgreSQL, Row Level Security, trigger notifikasi, dan isolasi data household.
+- Installable PWA, responsive mobile/desktop, mode gelap, dan cache app shell.
+- Mode demo persisten di `localStorage` apabila Supabase belum dikonfigurasi.
+
+## Menjalankan lokal
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka `http://localhost:3000`. Tanpa environment variables, halaman utama langsung menjalankan mode demo. Data demo dapat ditambah, diedit, dan dihapus serta tetap tersimpan setelah refresh.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Konfigurasi production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Buat project Supabase, lalu jalankan seluruh SQL dalam `supabase/migrations/` secara berurutan melalui SQL Editor atau Supabase CLI.
+2. Salin `.env.example` menjadi `.env.local` dan isi URL, anon key, serta service-role key Supabase.
+3. Buat VAPID keys:
 
-## Learn More
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+4. Isi VAPID keys dan `PUSH_WEBHOOK_SECRET` di `.env.local`.
+5. Di Supabase, aktifkan Realtime untuk tabel `transactions` dan `notifications`.
+6. Buat Database Webhook pada event `INSERT` tabel `notifications` menuju `https://DOMAIN/api/push/send`. Tambahkan header `Authorization: Bearer PUSH_WEBHOOK_SECRET`.
+7. Deploy ke Vercel dan salin seluruh environment variables ke konfigurasi project.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Alur production dimulai dari `/login`. Pengguna pertama membuat household di `/onboarding`; pasangan mendaftar sendiri lalu memasukkan kode undangan yang dibuat pemilik.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Bot Telegram gratis
 
-## Deploy on Vercel
+Bot memakai parser lokal terlebih dahulu. Pesan bahasa natural baru dikirim ke `GLM-4.7-Flash`, yang tercantum gratis pada [pricing resmi Z.AI](https://docs.z.ai/guides/overview/pricing). Jika model tidak tersedia, bot meminta template dan tidak berpindah otomatis ke model berbayar.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Buat bot melalui [@BotFather](https://t.me/BotFather), lalu ambil token dan username bot.
+2. Buat API key di Z.AI dan isi konfigurasi Telegram/Z.AI pada `.env.local` berdasarkan `.env.example`.
+3. Buat `TELEGRAM_WEBHOOK_SECRET` acak berisi huruf, angka, `_`, atau `-`.
+4. Pastikan `NEXT_PUBLIC_APP_URL` menggunakan domain HTTPS production tanpa trailing slash.
+5. Setelah deploy, daftarkan webhook dan command bot:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   ```bash
+   npm run telegram:setup
+   ```
+
+6. Dari aplikasi, buka ikon Telegram/Pengaturan, pilih akun default masing-masing, buat kode pairing, lalu tekan “Buka bot”. Anda dan pasangan melakukan pairing secara terpisah.
+
+Format tanpa AI:
+
+```text
+keluar 50rb makan dari BCA kopi
+masuk 10jt gaji ke BCA
+transfer 500rb dari BCA ke Jago
+```
+
+Pesan natural seperti `tadi ngopi 25 ribu pake gopay` diklasifikasi GLM. Hasil dengan confidence di bawah `0.85` menunggu tombol konfirmasi. Batas default adalah 50 panggilan AI per pengguna per hari dan dapat diubah melalui `TELEGRAM_AI_DAILY_LIMIT`.
+
+## Perintah pemeriksaan
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+Push notification membutuhkan HTTPS (kecuali `localhost`) dan izin pengguna. Apabila push ditolak atau tidak didukung, notifikasi tetap tersimpan di inbox aplikasi.
