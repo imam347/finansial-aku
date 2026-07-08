@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --experimental-specifier-resolution=node --test tests/*.test.ts",
+    "test": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs --test tests/*.test.ts",
     "telegram:setup": "node --env-file-if-exists=.env.local scripts/setup-telegram.mjs"
   },
   "dependencies": {
@@ -18,8 +18,11 @@
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-easy-crop": "^6.2.2",
+    "read-excel-file": "^9.2.0",
     "recharts": "^3.9.2",
     "web-push": "^3.6.7",
+    "write-excel-file": "^4.1.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Check, Pencil, X } from "lucide-react";
+import { Check, Pencil, ReceiptText, X } from "lucide-react";
 import type { Account, Budget, FinanceState } from "@/lib/types";
 import { formatRupiah } from "@/lib/format";
 import { CategoryIcon } from "./category-icon";
@@ -29,13 +29,13 @@ export function AccountModal({ account, onSave, onClose }: { account?: Account; 
   </form></div>;
 }
 
-export function AccountDetailsModal({ account, balance, transactions, onEdit, onClose }: { account: Account; balance: number; transactions: number; onEdit: () => void; onClose: () => void }) {
+export function AccountDetailsModal({ account, balance, transactions, onEdit, onShowTransactions, onClose }: { account: Account; balance: number; transactions: number; onEdit: () => void; onShowTransactions: () => void; onClose: () => void }) {
   const kindLabel = account.kind === "bank" ? "Rekening bank" : account.kind === "ewallet" ? "Dompet digital" : "Uang tunai";
   return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="transaction-modal setup-modal account-detail-modal" role="dialog" aria-modal="true" aria-labelledby="account-detail-title">
     <div className="modal-heading"><div><p>DETAIL AKUN</p><h2 id="account-detail-title">{account.name}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Tutup"><X size={21} /></button></div>
     <div className="account-detail-hero" style={{ "--account-color": account.color } as React.CSSProperties}><span>{kindLabel}</span><strong>{formatRupiah(balance)}</strong>{account.lastFour && <small>Nomor akun •••• {account.lastFour}</small>}</div>
-    <dl className="account-detail-list"><div><dt>Saldo awal</dt><dd>{formatRupiah(account.initialBalance)}</dd></div><div><dt>Aktivitas tercatat</dt><dd>{transactions} transaksi</dd></div><div><dt>Jenis akun</dt><dd>{kindLabel}</dd></div></dl>
-    <div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Tutup</button><button type="button" className="primary-button" onClick={onEdit}><Pencil size={17} /> Edit akun</button></div>
+    <dl className="account-detail-list"><div><dt>Saldo awal</dt><dd>{formatRupiah(account.initialBalance)}</dd></div><div><dt>Aktivitas tercatat</dt><dd><button type="button" className="account-activity-link" onClick={onShowTransactions}>{transactions} transaksi</button></dd></div><div><dt>Jenis akun</dt><dd>{kindLabel}</dd></div></dl>
+    <div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Tutup</button><button type="button" className="secondary-button" onClick={onShowTransactions}><ReceiptText size={17} /> Lihat transaksi</button><button type="button" className="primary-button" onClick={onEdit}><Pencil size={17} /> Edit akun</button></div>
   </section></div>;
 }
 

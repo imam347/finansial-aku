@@ -8,6 +8,8 @@ export interface Account {
   initialBalance: number;
   color: string;
   lastFour?: string;
+  balance?: number;
+  transactionCount?: number;
 }
 
 export interface Category {
@@ -28,6 +30,8 @@ export interface Transaction {
   note: string;
   date: string;
   createdBy: string;
+  createdById?: string;
+  createdByAvatarUrl?: string;
   createdAt: string;
 }
 
@@ -35,6 +39,7 @@ export interface Budget {
   id: string;
   categoryId: string;
   amount: number;
+  spent?: number;
 }
 
 export interface AppNotification {
@@ -45,6 +50,47 @@ export interface AppNotification {
   read: boolean;
   transactionId?: string;
   actorName?: string;
+  actorAvatarUrl?: string;
+}
+
+export type DashboardPeriod = "week" | "month";
+
+export interface DashboardSummary {
+  totalBalance: number;
+  monthlyIncome: number;
+  monthlyExpense: number;
+  budgetTotal: number;
+  categoryExpenses: { categoryId: string; value: number }[];
+  activity: { date: string; expense: number }[];
+}
+
+export type TransactionSort = "newest" | "oldest" | "amount_desc" | "amount_asc";
+export type TransactionDatePreset = "all" | "today" | "week" | "month" | "last30" | "custom";
+
+export interface TransactionFilters {
+  query: string;
+  types: TransactionType[];
+  accountIds: string[];
+  categoryIds: string[];
+  memberIds: string[];
+  datePreset: TransactionDatePreset;
+  dateFrom?: string;
+  dateTo?: string;
+  amountMin?: number;
+  amountMax?: number;
+  sort: TransactionSort;
+}
+
+export interface TransactionPage {
+  items: Transaction[];
+  total: number;
+  hasMore: boolean;
+}
+
+export interface HouseholdMember {
+  id: string;
+  name: string;
+  avatarUrl?: string;
 }
 
 export interface FinanceState {
