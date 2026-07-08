@@ -72,7 +72,7 @@ export function TransactionsView({ state, onAdd, onEdit, onDelete }: {
   );
 }
 
-export function BudgetsView({ state, setState, onBudgetUpdate, onAdd }: { state: FinanceState; setState: Dispatch<SetStateAction<FinanceState>>; onBudgetUpdate?: (id: string, amount: number) => void | Promise<void>; onAdd: () => void }) {
+export function BudgetsView({ state, setState, onBudgetUpdate, onBudgetDelete, onAdd }: { state: FinanceState; setState: Dispatch<SetStateAction<FinanceState>>; onBudgetUpdate?: (id: string, amount: number) => void | Promise<void>; onBudgetDelete: (id: string) => void | Promise<void>; onAdd: () => void }) {
   const [editingId, setEditingId] = useState<string>();
   const [value, setValue] = useState("");
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -102,7 +102,7 @@ export function BudgetsView({ state, setState, onBudgetUpdate, onAdd }: { state:
           const percent = Math.round(categorySpent / budget.amount * 100);
           return (
             <article className="budget-card" key={budget.id}>
-              <div className="budget-card-top"><span style={{ color: category.color, background: `${category.color}18` }}><CategoryIcon name={category.icon} size={21} /></span><button onClick={() => { setEditingId(editingId === budget.id ? undefined : budget.id); setValue(String(budget.amount)); }}><Pencil size={16} /></button></div>
+              <div className="budget-card-top"><span style={{ color: category.color, background: `${category.color}18` }}><CategoryIcon name={category.icon} size={21} /></span><div className="budget-actions"><button aria-label={`Edit anggaran ${category.name}`} onClick={() => { setEditingId(editingId === budget.id ? undefined : budget.id); setValue(String(budget.amount)); }}><Pencil size={16} /></button><button className="danger" aria-label={`Hapus anggaran ${category.name}`} onClick={() => { if (window.confirm(`Hapus anggaran ${category.name}?`)) void onBudgetDelete(budget.id); }}><Trash2 size={16} /></button></div></div>
               <h3>{category.name}</h3>
               <div className="budget-numbers"><strong>{formatRupiah(categorySpent)}</strong><span>dari {formatRupiah(budget.amount)}</span></div>
               <div className={`progress ${percent >= 80 ? "warning" : ""}`}><i style={{ width: `${Math.min(100, percent)}%`, background: category.color }} /></div>
@@ -118,7 +118,8 @@ export function BudgetsView({ state, setState, onBudgetUpdate, onAdd }: { state:
 
 const accountIcon = (account: Account) => account.kind === "bank" ? Landmark : account.kind === "ewallet" ? Smartphone : Wallet;
 
-export function AccountsView({ state, onAdd }: { state: FinanceState; onAdd: () => void }) {
+export function AccountsView({ state, onAdd, onDetail, onEdit }: { state: FinanceState; onAdd: () => void; onDetail: (account: Account, balance: number, transactions: number) => void; onEdit: (account: Account) => void }) {
+  const [openMenu, setOpenMenu] = useState<string>();
   const accounts = useMemo(() => state.accounts.map((account) => {
     const movement = state.transactions.reduce((sum, item) => {
       if (item.type === "income" && item.accountId === account.id) return sum + item.amount;
@@ -141,11 +142,11 @@ export function AccountsView({ state, onAdd }: { state: FinanceState; onAdd: () 
           const count = state.transactions.filter((item) => item.accountId === account.id || item.destinationAccountId === account.id).length;
           return (
             <article className="account-card" key={account.id} style={{ "--account-color": account.color } as React.CSSProperties}>
-              <div className="account-accent" /><div className="account-top"><span><Icon size={22} /></span><button><MoreHorizontal size={20} /></button></div>
+              <div className="account-accent" /><div className="account-top"><span><Icon size={22} /></span><div className="row-menu account-menu"><button aria-label={`Menu akun ${account.name}`} onClick={() => setOpenMenu(openMenu === account.id ? undefined : account.id)}><MoreHorizontal size={20} /></button>{openMenu === account.id && <div><button onClick={() => { onDetail(account, account.balance, count); setOpenMenu(undefined); }}><ArrowUpRight size={15} /> Detail</button><button onClick={() => { onEdit(account); setOpenMenu(undefined); }}><Pencil size={15} /> Edit</button></div>}</div></div>
               <p>{account.kind === "bank" ? "REKENING BANK" : account.kind === "ewallet" ? "DOMPET DIGITAL" : "TUNAI"}</p>
               <h3>{account.name} {account.lastFour && <small>•• {account.lastFour}</small>}</h3>
               <strong>{formatRupiah(account.balance)}</strong>
-              <div className="account-foot"><span>{count} transaksi bulan ini</span><button>Detail <ArrowUpRight size={14} /></button></div>
+              <div className="account-foot"><span>{count} transaksi tercatat</span><button onClick={() => onDetail(account, account.balance, count)}>Detail <ArrowUpRight size={14} /></button></div>
             </article>
           );
         })}

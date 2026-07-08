@@ -1,10 +1,39 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, CalendarDays, Check, ChevronDown, X } from "lucide-react";
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, CalendarDays, Check, ChevronDown, Landmark, Smartphone, Wallet, X } from "lucide-react";
 import { dateKey, formatRupiah } from "@/lib/format";
 import type { FinanceState, Transaction, TransactionType } from "@/lib/types";
 import { CategoryIcon } from "./category-icon";
+
+function accountBalance(state: FinanceState, accountId: string) {
+  const account = state.accounts.find((item) => item.id === accountId);
+  if (!account) return 0;
+  return state.transactions.reduce((balance, item) => {
+    if (item.type === "income" && item.accountId === accountId) return balance + item.amount;
+    if (item.type === "expense" && item.accountId === accountId) return balance - item.amount;
+    if (item.type === "transfer" && item.accountId === accountId) return balance - item.amount;
+    if (item.type === "transfer" && item.destinationAccountId === accountId) return balance + item.amount;
+    return balance;
+  }, account.initialBalance);
+}
+
+function AccountPicker({ label, state, value, excludeId, onChange }: { label: string; state: FinanceState; value: string; excludeId?: string; onChange: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const accounts = state.accounts.filter((account) => account.id !== excludeId);
+  const selected = accounts.find((account) => account.id === value) ?? accounts[0];
+  const Icon = selected?.kind === "bank" ? Landmark : selected?.kind === "ewallet" ? Smartphone : Wallet;
+
+  return <div className="account-picker-field"><span>{label}</span><div className="account-picker">
+    <button type="button" className="account-picker-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      {selected ? <><i style={{ color: selected.color, background: `${selected.color}18` }}><Icon size={17} /></i><span><strong>{selected.name}</strong><small>{formatRupiah(accountBalance(state, selected.id), true)}</small></span></> : <span><strong>Pilih akun</strong></span>}<ChevronDown size={17} />
+    </button>
+    {open && <div className="account-picker-menu" role="listbox">{accounts.map((account) => {
+      const AccountIcon = account.kind === "bank" ? Landmark : account.kind === "ewallet" ? Smartphone : Wallet;
+      return <button type="button" role="option" aria-selected={account.id === selected?.id} key={account.id} className={account.id === selected?.id ? "active" : ""} onClick={() => { onChange(account.id); setOpen(false); }}><i style={{ color: account.color, background: `${account.color}18` }}><AccountIcon size={17} /></i><span><strong>{account.name}</strong><small>{formatRupiah(accountBalance(state, account.id), true)}</small></span>{account.id === selected?.id && <Check size={15} />}</button>;
+    })}</div>}
+  </div></div>;
+}
 
 export function TransactionModal({ state, editing, currentUserName, onSave, onClose }: {
   state: FinanceState;
@@ -70,8 +99,8 @@ export function TransactionModal({ state, editing, currentUserName, onSave, onCl
         {type !== "transfer" && <fieldset className="category-picker"><legend>Kategori</legend><div>{categories.map((category) => <button type="button" key={category.id} className={selectedCategoryId === category.id ? "active" : ""} onClick={() => setCategoryId(category.id)}><span style={{ color: category.color, background: `${category.color}18` }}><CategoryIcon name={category.icon} size={19} /></span><small>{category.name}</small>{selectedCategoryId === category.id && <i><Check size={11} /></i>}</button>)}</div></fieldset>}
 
         <div className="form-grid">
-          <label><span>{type === "transfer" ? "Dari akun" : "Akun"}</span><div className="select-wrap"><select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{state.accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {formatRupiah(account.initialBalance, true)}</option>)}</select><ChevronDown size={16} /></div></label>
-          {type === "transfer" ? <label><span>Ke akun</span><div className="select-wrap"><select value={destinationAccountId} onChange={(event) => setDestinationAccountId(event.target.value)}>{state.accounts.filter((account) => account.id !== accountId).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select><ChevronDown size={16} /></div></label> : <label><span>Tanggal</span><div className="date-wrap"><CalendarDays size={17} /><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div></label>}
+          <AccountPicker label={type === "transfer" ? "Dari akun" : "Akun"} state={state} value={accountId} onChange={(id) => { setAccountId(id); if (id === destinationAccountId) setDestinationAccountId(state.accounts.find((account) => account.id !== id)?.id ?? ""); }} />
+          {type === "transfer" ? <AccountPicker label="Ke akun" state={state} value={destinationAccountId} excludeId={accountId} onChange={setDestinationAccountId} /> : <label><span>Tanggal</span><div className="date-wrap"><CalendarDays size={17} /><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div></label>}
         </div>
         {type === "transfer" && <label className="full-field"><span>Tanggal</span><div className="date-wrap"><CalendarDays size={17} /><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div></label>}
 

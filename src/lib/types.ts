@@ -44,6 +44,7 @@ export interface AppNotification {
   time: string;
   read: boolean;
   transactionId?: string;
+  actorName?: string;
 }
 
 export interface FinanceState {

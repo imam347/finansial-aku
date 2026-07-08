@@ -50,7 +50,7 @@ export default function LoginPage() {
           {message && <p className="auth-message">{message}</p>}
           <button className="primary-button auth-submit" disabled={loading}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Buat akun"}<ArrowRight size={17} /></button>
           <p className="auth-switch">{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"} <button type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(""); }}>{mode === "login" ? "Daftar sekarang" : "Masuk"}</button></p>
-          <div className="demo-divider"><span>atau</span></div><Link className="demo-link" href="/">Lihat mode demo tanpa login <ArrowRight size={15} /></Link>
+          {!hasSupabaseConfig && <><div className="demo-divider"><span>atau</span></div><Link className="demo-link" href="/">Lihat mode demo tanpa login <ArrowRight size={15} /></Link></>}
         </form>
       </section>
     </main>
