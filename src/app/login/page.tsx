@@ -1,10 +1,15 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CircleDollarSign, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
+
+const DEMO_COOKIE = "finansial_demo";
+
+function clearDemoCookie() {
+  document.cookie = `${DEMO_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,13 +29,20 @@ export default function LoginPage() {
     if (mode === "login") {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setMessage(error.message);
-      else { router.push("/onboarding"); router.refresh(); }
+      else { clearDemoCookie(); router.push("/onboarding"); router.refresh(); }
     } else {
       const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
       if (error) setMessage(error.message);
       else setMessage("Akun berhasil dibuat. Periksa email jika konfirmasi diaktifkan.");
     }
     setLoading(false);
+  };
+
+  const enterDemo = () => {
+    setMessage("");
+    document.cookie = `${DEMO_COOKIE}=1; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+    router.push("/");
+    router.refresh();
   };
 
   return (
@@ -50,7 +62,8 @@ export default function LoginPage() {
           {message && <p className="auth-message">{message}</p>}
           <button className="primary-button auth-submit" disabled={loading}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Buat akun"}<ArrowRight size={17} /></button>
           <p className="auth-switch">{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"} <button type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(""); }}>{mode === "login" ? "Daftar sekarang" : "Masuk"}</button></p>
-          {!hasSupabaseConfig && <><div className="demo-divider"><span>atau</span></div><Link className="demo-link" href="/">Lihat mode demo tanpa login <ArrowRight size={15} /></Link></>}
+          <div className="demo-divider"><span>atau</span></div>
+          <button type="button" className="demo-link" onClick={enterDemo}>Lihat mode demo tanpa login <ArrowRight size={15} /></button>
         </form>
       </section>
     </main>

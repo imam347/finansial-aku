@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseIndonesianAmount, parseTemplate } from "../src/lib/telegram/parser.ts";
+import { parseIndonesianAmount, parseTemplate } from "../src/lib/telegram/parser";
 
 const context = {
   accounts: [{ id: "bca", name: "BCA Utama" }, { id: "jago", name: "Jago Bersama" }, { id: "gopay", name: "GoPay" }],

@@ -5,6 +5,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Eye,
+  EyeOff,
   MoreHorizontal,
   Plus,
   TrendingDown,
@@ -23,42 +24,57 @@ import {
   XAxis,
 } from "recharts";
 import { formatDate, formatRupiah } from "@/lib/format";
-import type { FinanceState, ViewId } from "@/lib/types";
+import { getDashboardRange } from "@/lib/date-ranges";
+import type { DashboardPeriod, DashboardSummary, FinanceState, ViewId } from "@/lib/types";
 import { CategoryIcon } from "./category-icon";
+import { UserAvatar } from "./user-avatar";
 
 interface DashboardViewProps {
   state: FinanceState;
   totalBalance: number;
+  summary?: DashboardSummary;
+  balanceVisible: boolean;
+  onToggleBalance: () => void;
+  period: DashboardPeriod;
+  onPeriodChange: (period: DashboardPeriod) => void;
   onAdd: () => void;
   onNavigate: (view: ViewId) => void;
 }
 
-export function DashboardView({ state, totalBalance, onAdd, onNavigate }: DashboardViewProps) {
+export function DashboardView({ state, totalBalance, summary, balanceVisible, onToggleBalance, period, onPeriodChange, onAdd, onNavigate }: DashboardViewProps) {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const monthly = state.transactions.filter((item) => item.date.startsWith(currentMonth));
-  const income = monthly.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
-  const expense = monthly.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
+  const income = summary?.monthlyIncome ?? monthly.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
+  const expense = summary?.monthlyExpense ?? monthly.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
 
   const categoryData = state.categories
       .filter((category) => category.type === "expense")
       .map((category) => ({
         ...category,
-        value: monthly.filter((item) => item.categoryId === category.id).reduce((sum, item) => sum + item.amount, 0),
+        value: summary?.categoryExpenses.find((item) => item.categoryId === category.id)?.value
+          ?? monthly.filter((item) => item.categoryId === category.id).reduce((sum, item) => sum + item.amount, 0),
       }))
       .filter((item) => item.value > 0)
       .sort((a, b) => b.value - a.value);
 
-  const activityData = Array.from({ length: 12 }, (_, index) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (11 - index));
-      const key = date.toISOString().slice(0, 10);
-      return {
-        date: new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" }).format(date),
-        expense: state.transactions.filter((item) => item.date === key && item.type === "expense").reduce((sum, item) => sum + item.amount, 0),
-      };
-    });
+  const fallbackRange = getDashboardRange(period);
+  const fallbackActivity = (() => {
+    const result: { date: string; expense: number }[] = [];
+    const cursor = new Date(`${fallbackRange.from}T00:00:00`);
+    const end = new Date(`${fallbackRange.to}T00:00:00`);
+    while (cursor <= end) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+      result.push({ date: key, expense: state.transactions.filter((item) => item.date === key && item.type === "expense").reduce((sum, item) => sum + item.amount, 0) });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return result;
+  })();
+  const activityData = (summary?.activity ?? fallbackActivity).map((item) => ({
+    ...item,
+    label: new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" }).format(new Date(`${item.date}T00:00:00`)),
+  }));
 
-  const budgetTotal = state.budgets.reduce((sum, budget) => sum + budget.amount, 0);
+  const budgetTotal = summary?.budgetTotal ?? state.budgets.reduce((sum, budget) => sum + budget.amount, 0);
   const budgetPercent = Math.min(100, Math.round((expense / Math.max(budgetTotal, 1)) * 100));
 
   return (
@@ -66,8 +82,8 @@ export function DashboardView({ state, totalBalance, onAdd, onNavigate }: Dashbo
       <section className="hero-balance">
         <div className="hero-decoration one" /><div className="hero-decoration two" />
         <div className="hero-copy">
-          <p><span className="status-dot" /> Total saldo keluarga <Eye size={16} /></p>
-          <h2>{formatRupiah(totalBalance)}</h2>
+          <p><span className="status-dot" /> Total saldo keluarga <button className="balance-toggle" type="button" onClick={onToggleBalance} aria-label={balanceVisible ? "Sembunyikan total saldo" : "Tampilkan total saldo"}>{balanceVisible ? <Eye size={16} /> : <EyeOff size={16} />}</button></p>
+          <h2 aria-live="polite">{balanceVisible ? formatRupiah(totalBalance) : "Rp ••••••••"}</h2>
           <div className="hero-trend"><TrendingUp size={15} /><strong>8,4%</strong><span>dari bulan lalu</span></div>
         </div>
         <div className="hero-actions">
@@ -97,7 +113,7 @@ export function DashboardView({ state, totalBalance, onAdd, onNavigate }: Dashbo
 
       <div className="dashboard-grid">
         <section className="panel activity-panel">
-          <div className="panel-heading"><div><p>AKTIVITAS PENGELUARAN</p><h3>Tren 12 hari terakhir</h3></div><button>Bulan ini <span>⌄</span></button></div>
+          <div className="panel-heading"><div><p>AKTIVITAS PENGELUARAN</p><h3>{period === "week" ? "Tren minggu berjalan" : "Tren bulan berjalan"}</h3></div><select aria-label="Periode aktivitas pengeluaran" value={period} onChange={(event) => onPeriodChange(event.target.value as DashboardPeriod)}><option value="week">Minggu Ini</option><option value="month">Bulan Ini</option></select></div>
           <div className="activity-chart">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData} margin={{ top: 15, right: 8, left: 0, bottom: 0 }}>
@@ -105,7 +121,7 @@ export function DashboardView({ state, totalBalance, onAdd, onNavigate }: Dashbo
                   <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#197253" stopOpacity={0.28} /><stop offset="100%" stopColor="#197253" stopOpacity={0} /></linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "var(--muted)", fontSize: 11 }} interval={2} dy={8} />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "var(--muted)", fontSize: 11 }} interval={period === "week" ? 0 : 4} dy={8} />
                 <Tooltip formatter={(value) => formatRupiah(Number(value))} contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 12 }} />
                 <Area type="monotone" dataKey="expense" stroke="#197253" strokeWidth={3} fill="url(#expenseGradient)" dot={{ r: 3, fill: "#197253", strokeWidth: 3, stroke: "var(--surface)" }} activeDot={{ r: 5 }} />
               </AreaChart>
@@ -141,7 +157,7 @@ export function DashboardView({ state, totalBalance, onAdd, onNavigate }: Dashbo
               <div className="transaction-row" key={item.id}>
                 <span className="category-symbol" style={{ color: category?.color, background: `${category?.color}18` }}><CategoryIcon name={category?.icon} /></span>
                 <div className="transaction-main"><strong>{item.note}</strong><small>{category?.name ?? "Transfer"} · {account?.name}</small></div>
-                <div className="transaction-person"><span className={`mini-avatar ${item.createdBy.toLowerCase()}`}>{item.createdBy.slice(0, 2).toUpperCase()}</span><small>{item.createdBy}</small></div>
+                <div className="transaction-person"><UserAvatar name={item.createdBy} src={item.createdByAvatarUrl} className="mini-avatar" /><small>{item.createdBy}</small></div>
                 <div className="transaction-value"><strong className={item.type}>{item.type === "income" ? "+" : item.type === "expense" ? "−" : ""}{formatRupiah(item.amount)}</strong><small>{formatDate(item.date)}</small></div>
               </div>
             );
