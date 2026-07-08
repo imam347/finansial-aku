@@ -45,6 +45,13 @@ const titles: Record<ViewId, { eyebrow: string; title: string }> = {
 const STORAGE_KEY = "finansial-aku-demo-v1";
 
 export function FinanceApp() {
+  function getInitials(name?: string) {
+    if (!name) return "SA";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
   const [state, setState] = useState<FinanceState>(() => createDemoState());
   const [view, setView] = useState<ViewId>("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
@@ -57,6 +64,8 @@ export function FinanceApp() {
   const [toast, setToast] = useState("");
   const [inviteCode, setInviteCode] = useState("KITA-2841");
   const [backend, setBackend] = useState<{ householdId: string; userId: string; userName: string } | null>(null);
+  const [householdName, setHouseholdName] = useState<string | null>(null);
+  const [memberCount, setMemberCount] = useState<number | null>(null);
   const hydrated = useRef(false);
   const reloadRef = useRef<() => Promise<void>>(async () => undefined);
 
@@ -108,7 +117,11 @@ export function FinanceApp() {
         const { data: profiles } = memberIds.length ? await supabase.from("profiles").select("id,full_name").in("id", memberIds) : { data: [] };
         const names = new Map((profiles ?? []).map((profile) => [profile.id as string, profile.full_name as string]));
         const userName = names.get(user.id) ?? user.user_metadata.full_name ?? "Saya";
+        const { data: householdRes } = await supabase.from("households").select("name").eq("id", householdId).maybeSingle();
+        const resolvedHouseholdName = householdRes?.name ?? `Keluarga ${userName.split(" ")[0] ?? ""}`;
         if (!active) return;
+        setHouseholdName(resolvedHouseholdName);
+        setMemberCount((membersResult.data ?? []).length);
         setBackend({ householdId, userId: user.id, userName });
         setState({
           accounts: (accountsResult.data ?? []).map((item) => ({ id: item.id, name: item.name, kind: item.kind, initialBalance: Number(item.initial_balance), color: item.color, lastFour: item.last_four ?? undefined })),
@@ -153,6 +166,9 @@ export function FinanceApp() {
       return total + account.initialBalance + movement;
     }, 0);
   }, [state.accounts, state.transactions]);
+
+  const eyebrow = titles[view].eyebrow;
+  const titleText = view === "dashboard" ? `Selamat pagi, ${backend?.userName ?? "Saya"}!` : titles[view].title;
 
   const saveTransaction = async (transaction: Transaction) => {
     const savedTransaction = backend ? { ...transaction, createdBy: editing?.createdBy ?? backend.userName } : transaction;
@@ -261,17 +277,17 @@ export function FinanceApp() {
         </nav>
 
         <div className="household-card">
-          <div className="avatar-stack"><span>IM</span><span>AL</span></div>
-          <strong>Keluarga Imam</strong>
-          <p>2 anggota aktif</p>
+          <div className="avatar-stack"><span>{getInitials(householdName)}</span><span>{getInitials(backend?.userName)}</span></div>
+          <strong>{householdName ?? `Keluarga ${backend?.userName?.split(" ")[0] ?? "Saya"}`}</strong>
+          <p>{memberCount != null ? `${memberCount} anggota aktif` : "— anggota aktif"}</p>
           <button onClick={() => void handleInvitation()}>
             {backend && inviteCode === "KITA-2841" ? "Buat kode undangan" : `Kode: ${inviteCode}`} <ChevronRight size={14} />
           </button>
         </div>
 
         <div className="profile-row">
-          <span className="avatar imam">IM</span>
-          <div><strong>Imam Azmi</strong><small>Pemilik household</small></div>
+          <span className="avatar imam">{getInitials(backend?.userName)}</span>
+          <div><strong>{backend?.userName ?? "Anda"}</strong><small>Pemilik household</small></div>
           <button aria-label="Ganti tema" onClick={() => setDark((value) => !value)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
         </div>
       </aside>
@@ -279,8 +295,8 @@ export function FinanceApp() {
       <main className="main-content">
         <header className="topbar">
           <div>
-            <p>{titles[view].eyebrow}</p>
-            <h1>{titles[view].title} <span aria-hidden="true">{view === "dashboard" ? "👋" : ""}</span></h1>
+            <p>{eyebrow}</p>
+            <h1>{titleText} <span aria-hidden="true">{view === "dashboard" ? "👋" : ""}</span></h1>
           </div>
           <div className="top-actions">
             <label className="search-box"><Search size={18} /><input aria-label="Cari transaksi" placeholder="Cari transaksi..." /></label>
@@ -306,7 +322,7 @@ export function FinanceApp() {
       </nav>
       <button className="mobile-fab" aria-label="Catat transaksi" onClick={() => { setEditing(undefined); setModalOpen(true); }}><Plus size={27} /></button>
 
-      {modalOpen && <TransactionModal state={state} editing={editing} currentUserName={backend?.userName ?? "Imam"} onSave={saveTransaction} onClose={() => { setEditing(undefined); setModalOpen(false); }} />}
+      {modalOpen && <TransactionModal state={state} editing={editing} currentUserName={backend?.userName ?? "Saya"} onSave={saveTransaction} onClose={() => { setEditing(undefined); setModalOpen(false); }} />}
       {accountModalOpen && <AccountModal onSave={addAccount} onClose={() => setAccountModalOpen(false)} />}
       {budgetModalOpen && <BudgetModal state={state} onSave={addBudget} onClose={() => setBudgetModalOpen(false)} />}
       {telegramOpen && <TelegramSettings accounts={state.accounts} production={Boolean(backend)} onClose={() => setTelegramOpen(false)} onToast={setToast} />}
