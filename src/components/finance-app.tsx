@@ -477,7 +477,7 @@ export function FinanceApp() {
 
         {view === "dashboard" && <DashboardView state={state} totalBalance={accountBalance} summary={dashboardSummary} balanceVisible={balanceVisible} onToggleBalance={() => setBalanceVisible((value) => !value)} period={dashboardPeriod} onPeriodChange={setDashboardPeriod} onAdd={() => setModalOpen(true)} onNavigate={navigate} />}
         {view === "transactions" && <TransactionsView state={state} householdId={backend?.householdId} members={memberList} refreshToken={transactionRefresh} accountFilterRequest={accountFilterRequest} onRefresh={() => reloadRef.current()} onToast={setToast} onImport={importTransactions} onAdd={() => setModalOpen(true)} onEdit={openEdit} onDelete={deleteTransaction} />}
-        {view === "budgets" && <BudgetsView state={state} monthlyExpense={dashboardSummary?.monthlyExpense} setState={setState} onAdd={() => setBudgetModalOpen(true)} onBudgetUpdate={updateBudget} onBudgetDelete={deleteBudget} />}
+        {view === "budgets" && <BudgetsView state={state} setState={setState} onAdd={() => setBudgetModalOpen(true)} onBudgetUpdate={updateBudget} onBudgetDelete={deleteBudget} />}
         {view === "accounts" && <AccountsView state={state} onAdd={() => { setEditingAccount(undefined); setAccountModalOpen(true); }} onEdit={(account) => { setEditingAccount(account); setAccountModalOpen(true); }} onDetail={(account, balance, transactions) => setAccountDetails({ account, balance, transactions })} />}
       </main>
 

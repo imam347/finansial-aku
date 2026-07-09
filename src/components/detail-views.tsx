@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { formatDate, formatRupiah } from "@/lib/format";
+import { getBudgetUsage } from "@/lib/budget-usage";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { DEFAULT_TRANSACTION_FILTERS, filterDemoTransactions, mapTransactionRow, transactionRpcParams } from "@/lib/transaction-query";
 import type { Account, FinanceState, HouseholdMember, Transaction, TransactionFilters } from "@/lib/types";
@@ -216,15 +217,14 @@ export function TransactionsView({ state, householdId, members, refreshToken, ac
   );
 }
 
-export function BudgetsView({ state, monthlyExpense, setState, onBudgetUpdate, onBudgetDelete, onAdd }: { state: FinanceState; monthlyExpense?: number; setState: Dispatch<SetStateAction<FinanceState>>; onBudgetUpdate?: (id: string, amount: number) => void | Promise<void>; onBudgetDelete: (id: string) => void | Promise<void>; onAdd: () => void }) {
+export function BudgetsView({ state, setState, onBudgetUpdate, onBudgetDelete, onAdd }: { state: FinanceState; setState: Dispatch<SetStateAction<FinanceState>>; onBudgetUpdate?: (id: string, amount: number) => void | Promise<void>; onBudgetDelete: (id: string) => void | Promise<void>; onAdd: () => void }) {
   const [editingId, setEditingId] = useState<string>();
   const [value, setValue] = useState("");
   const currentMonth = new Date().toISOString().slice(0, 7);
   const expenses = state.transactions.filter((item) => item.type === "expense" && item.date.startsWith(currentMonth));
-  const spent = monthlyExpense ?? (state.budgets.some((item) => item.spent !== undefined)
-    ? state.budgets.reduce((sum, item) => sum + (item.spent ?? 0), 0)
-    : expenses.reduce((sum, item) => sum + item.amount, 0));
-  const limit = state.budgets.reduce((sum, item) => sum + item.amount, 0);
+  const budgetUsage = getBudgetUsage(state, currentMonth);
+  const spent = budgetUsage.spent;
+  const limit = budgetUsage.total;
 
   const saveBudget = (id: string) => {
     const amount = Number(value.replace(/\D/g, ""));
@@ -238,7 +238,7 @@ export function BudgetsView({ state, monthlyExpense, setState, onBudgetUpdate, o
     <div className="page detail-page budget-page">
       <section className="budget-hero">
         <div><p>TOTAL ANGGARAN JULI</p><h2>{formatRupiah(limit)}</h2><span>{formatRupiah(spent)} sudah digunakan</span></div>
-        <div className="budget-ring" style={{ "--percent": `${Math.min(100, Math.round(spent / Math.max(limit, 1) * 100)) * 3.6}deg` } as React.CSSProperties}><div><strong>{Math.round(spent / Math.max(limit, 1) * 100)}%</strong><small>terpakai</small></div></div>
+        <div className="budget-ring" style={{ "--percent": `${budgetUsage.percent * 3.6}deg` } as React.CSSProperties}><div><strong>{budgetUsage.percent}%</strong><small>terpakai</small></div></div>
       </section>
       <div className="section-title"><div><p>PER KATEGORI</p><h2>Jaga pengeluaran tetap sehat</h2></div><button className="secondary-button" onClick={onAdd}><Plus size={17} /> Anggaran</button></div>
       <section className="budget-grid">

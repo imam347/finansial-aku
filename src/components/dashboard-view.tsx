@@ -25,6 +25,7 @@ import {
 } from "recharts";
 import { formatDate, formatRupiah } from "@/lib/format";
 import { getDashboardRange } from "@/lib/date-ranges";
+import { getBudgetUsage } from "@/lib/budget-usage";
 import type { DashboardPeriod, DashboardSummary, FinanceState, ViewId } from "@/lib/types";
 import { CategoryIcon } from "./category-icon";
 import { UserAvatar } from "./user-avatar";
@@ -74,8 +75,9 @@ export function DashboardView({ state, totalBalance, summary, balanceVisible, on
     label: new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" }).format(new Date(`${item.date}T00:00:00`)),
   }));
 
-  const budgetTotal = summary?.budgetTotal ?? state.budgets.reduce((sum, budget) => sum + budget.amount, 0);
-  const budgetPercent = Math.min(100, Math.round((expense / Math.max(budgetTotal, 1)) * 100));
+  const budgetUsage = getBudgetUsage(state, currentMonth);
+  const budgetTotal = budgetUsage.total;
+  const budgetPercent = budgetUsage.percent;
 
   return (
     <div className="page dashboard-page">
@@ -105,7 +107,7 @@ export function DashboardView({ state, totalBalance, summary, balanceVisible, on
         </article>
         <article className="metric-card budget-metric">
           <div className="metric-top"><p>Anggaran terpakai</p><strong>{budgetPercent}%</strong></div>
-          <h3>{formatRupiah(expense)} <span>/ {formatRupiah(budgetTotal, true)}</span></h3>
+          <h3>{formatRupiah(budgetUsage.spent)} <span>/ {formatRupiah(budgetTotal, true)}</span></h3>
           <div className="progress"><i style={{ width: `${budgetPercent}%` }} /></div>
           <small>Masih aman untuk bulan ini</small>
         </article>
