@@ -87,6 +87,8 @@ export function FinanceApp() {
   const [backend, setBackend] = useState<BackendContext | null>(null);
   const hydrated = useRef(false);
   const reloadRef = useRef<() => Promise<void>>(async () => undefined);
+  const desktopProfileMenuRef = useRef<HTMLDivElement>(null);
+  const mobileProfileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const hydrate = () => {
@@ -197,8 +199,17 @@ export function FinanceApp() {
 
   useEffect(() => {
     const closeMenu = (event: KeyboardEvent) => { if (event.key === "Escape") setProfileMenuOpen(false); };
+    const closeMenuOnOutsideClick = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (desktopProfileMenuRef.current?.contains(event.target) || mobileProfileMenuRef.current?.contains(event.target)) return;
+      setProfileMenuOpen(false);
+    };
     window.addEventListener("keydown", closeMenu);
-    return () => window.removeEventListener("keydown", closeMenu);
+    window.addEventListener("pointerdown", closeMenuOnOutsideClick);
+    return () => {
+      window.removeEventListener("keydown", closeMenu);
+      window.removeEventListener("pointerdown", closeMenuOnOutsideClick);
+    };
   }, []);
 
   useEffect(() => {
@@ -433,7 +444,7 @@ export function FinanceApp() {
           {(!backend || backend.role === "owner") && memberList.length < 2 && <div className="invite-actions"><button onClick={() => void handleInvitation()}>{inviteCode ? `Salin ${inviteCode}` : "Buat kode undangan"} <ChevronRight size={14} /></button>{inviteCode && <button className="reset-invite" aria-label="Ganti kode undangan" onClick={() => void resetInvitation()}><RotateCcw size={13} /></button>}</div>}
         </div>
 
-        <div className="profile-row" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setProfileMenuOpen(false); }}>
+        <div className="profile-row" ref={desktopProfileMenuRef}>
           <button className="profile-avatar-button" aria-label="Buka menu akun" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((value) => !value)}><UserAvatar name={currentUserName} src={backend?.avatarUrl ?? demoAvatarUrl} /></button>
           <div><strong>{currentUserName}</strong><small>{backend?.role === "owner" ? "Pemilik household" : "Anggota household"}</small></div>
           <button aria-label="Ganti tema" onClick={() => setDark((value) => !value)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
@@ -451,6 +462,12 @@ export function FinanceApp() {
             <label className="search-box"><Search size={18} /><input aria-label="Cari transaksi" placeholder="Cari transaksi..." /></label>
             <button className="icon-button" aria-label="Pengaturan bot Telegram" onClick={() => setTelegramOpen(true)}><Send size={18} /></button>
             <button className="icon-button theme-mobile" aria-label="Ganti tema" onClick={() => setDark((value) => !value)}>{dark ? <Sun size={19} /> : <Moon size={19} />}</button>
+            <div className="mobile-account-menu" ref={mobileProfileMenuRef}>
+              <button type="button" className="mobile-account-trigger" aria-label="Buka menu akun" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((value) => !value)}>
+                <UserAvatar name={currentUserName} src={backend?.avatarUrl ?? demoAvatarUrl} />
+              </button>
+              {profileMenuOpen && <div className="profile-menu mobile-profile-menu"><button type="button" onClick={() => { setProfileMenuOpen(false); setAvatarOpen(true); }}><Camera size={16} /> Ganti avatar</button><button type="button" className="danger" onClick={() => void logout()}><LogOut size={16} /> Logout</button></div>}
+            </div>
             <button className="icon-button notification-button" aria-label={`${unread} notifikasi belum dibaca`} onClick={() => setNotificationsOpen(true)}>
               <Bell size={20} />{unread > 0 && <i>{unread}</i>}
             </button>
