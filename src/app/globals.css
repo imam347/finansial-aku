@@ -90,6 +90,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .icon-button { width: 39px; height: 39px; display: grid; place-items: center; padding: 0; border: 1px solid var(--border); background: var(--surface); border-radius: 10px; cursor: pointer; }
 .notification-button { position: relative; }
 .notification-button i { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; display: grid; place-items: center; border-radius: 9px; background: var(--coral); color: white; border: 2px solid var(--background); font-style: normal; font-size: 8px; font-weight: 800; }
+.mobile-account-menu { display: none; position: relative; }
+.mobile-account-trigger { width: 37px; height: 37px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); display: grid; place-items: center; cursor: pointer; }
+.mobile-account-trigger .avatar { width: 31px; height: 31px; border-color: var(--surface); }
 .theme-mobile { display: none; }
 .primary-button, .secondary-button { height: 40px; padding: 0 16px; border-radius: 10px; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 700; font-size: 12px; cursor: pointer; transition: .18s ease; }
 .primary-button { background: var(--brand); color: white; box-shadow: 0 7px 17px color-mix(in srgb, var(--brand) 22%, transparent); }
@@ -211,6 +214,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 @media (max-width: 760px) {
   body { font-size: 13px; padding-bottom: 71px; }.sidebar { display: none; }.main-content { margin-left: 0; }
   .topbar { min-height: 78px; padding: 15px 18px; position: sticky; z-index: 20; top: 0; }.topbar p { margin-bottom: 3px; font-size: 8px; }.topbar h1 { font-size: 18px; }.desktop-add { display: none; }.theme-mobile { display: grid; }.icon-button { width: 37px; height: 37px; }
+  .mobile-account-menu { display: block; }.mobile-account-menu .mobile-profile-menu { z-index: 60; inset: calc(100% + 8px) 0 auto auto; width: 154px; text-align: left; }
   .page { padding: 16px 14px 32px; }.hero-balance { min-height: 184px; padding: 27px 23px; border-radius: 18px; align-items: flex-start; }.hero-copy h2 { font-size: 27px; }.hero-actions { position: absolute; right: 12px; bottom: 18px; margin: 0; }.hero-actions button { width: 64px; }.hero-actions button span { width: 43px; height: 43px; border-radius: 13px; }.hero-actions button small { font-size: 8px; }
   .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }.metric-card { min-height: 121px; padding: 15px; display: block; }.metric-icon { width: 34px; height: 34px; margin-bottom: 10px; }.metric-card p { font-size: 8px; }.metric-card h3 { font-size: 14px; }.metric-card small { font-size: 8px; }.metric-card small span { display: none; }.budget-metric { min-height: 105px; grid-column: span 2; }.budget-metric h3 { font-size: 14px; }
   .dashboard-grid { gap: 12px; }.panel { border-radius: 15px; }.panel-heading { padding-inline: 15px; }.activity-chart { height: 190px; }.category-content { min-height: 190px; }.donut-wrap { width: 53%; height: 160px; }.recent-panel { margin-top: 12px; }.transaction-list { padding-inline: 14px; }.compact-list .transaction-row:nth-child(n+5) { display: none; }
