@@ -3,12 +3,17 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CircleDollarSign, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { DEMO_SESSION_COOKIE, SESSION_ACTIVITY_COOKIE, SESSION_ACTIVITY_STORAGE_KEY, SESSION_IDLE_TIMEOUT_SECONDS } from "@/lib/session";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 
-const DEMO_COOKIE = "finansial_demo";
-
 function clearDemoCookie() {
-  document.cookie = `${DEMO_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  document.cookie = `${DEMO_SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+}
+
+function writeSessionActivity() {
+  const value = String(Date.now());
+  window.localStorage.setItem(SESSION_ACTIVITY_STORAGE_KEY, value);
+  document.cookie = `${SESSION_ACTIVITY_COOKIE}=${value}; path=/; max-age=${SESSION_IDLE_TIMEOUT_SECONDS}; SameSite=Lax`;
 }
 
 export default function LoginPage() {
@@ -29,7 +34,7 @@ export default function LoginPage() {
     if (mode === "login") {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setMessage(error.message);
-      else { clearDemoCookie(); router.push("/onboarding"); router.refresh(); }
+      else { clearDemoCookie(); writeSessionActivity(); router.push("/onboarding"); router.refresh(); }
     } else {
       const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
       if (error) setMessage(error.message);
@@ -40,7 +45,8 @@ export default function LoginPage() {
 
   const enterDemo = () => {
     setMessage("");
-    document.cookie = `${DEMO_COOKIE}=1; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+    writeSessionActivity();
+    document.cookie = `${DEMO_SESSION_COOKIE}=1; path=/; max-age=${SESSION_IDLE_TIMEOUT_SECONDS}; SameSite=Lax`;
     router.push("/");
     router.refresh();
   };

@@ -26,7 +26,8 @@ import {
 import { formatDate, formatRupiah } from "@/lib/format";
 import { getDashboardRange } from "@/lib/date-ranges";
 import { getBudgetUsage } from "@/lib/budget-usage";
-import type { DashboardPeriod, DashboardSummary, FinanceState, ViewId } from "@/lib/types";
+import { getDashboardActivity, getDashboardCategoryExpenses } from "@/lib/dashboard-aggregation";
+import type { DashboardActivityFilter, DashboardPeriod, DashboardSummary, FinanceState, ViewId } from "@/lib/types";
 import { CategoryIcon } from "./category-icon";
 import { UserAvatar } from "./user-avatar";
 
@@ -36,44 +37,36 @@ interface DashboardViewProps {
   summary?: DashboardSummary;
   balanceVisible: boolean;
   onToggleBalance: () => void;
-  period: DashboardPeriod;
-  onPeriodChange: (period: DashboardPeriod) => void;
+  activityFilter: DashboardActivityFilter;
+  onActivityFilterChange: (filter: DashboardActivityFilter) => void;
   onAdd: () => void;
   onNavigate: (view: ViewId) => void;
 }
 
-export function DashboardView({ state, totalBalance, summary, balanceVisible, onToggleBalance, period, onPeriodChange, onAdd, onNavigate }: DashboardViewProps) {
+export function DashboardView({ state, totalBalance, summary, balanceVisible, onToggleBalance, activityFilter, onActivityFilterChange, onAdd, onNavigate }: DashboardViewProps) {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const monthly = state.transactions.filter((item) => item.date.startsWith(currentMonth));
   const income = summary?.monthlyIncome ?? monthly.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
   const expense = summary?.monthlyExpense ?? monthly.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
 
-  const categoryData = state.categories
-      .filter((category) => category.type === "expense")
-      .map((category) => ({
-        ...category,
-        value: summary?.categoryExpenses.find((item) => item.categoryId === category.id)?.value
-          ?? monthly.filter((item) => item.categoryId === category.id).reduce((sum, item) => sum + item.amount, 0),
-      }))
-      .filter((item) => item.value > 0)
-      .sort((a, b) => b.value - a.value);
-
-  const fallbackRange = getDashboardRange(period);
-  const fallbackActivity = (() => {
-    const result: { date: string; expense: number }[] = [];
-    const cursor = new Date(`${fallbackRange.from}T00:00:00`);
-    const end = new Date(`${fallbackRange.to}T00:00:00`);
-    while (cursor <= end) {
-      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
-      result.push({ date: key, expense: state.transactions.filter((item) => item.date === key && item.type === "expense").reduce((sum, item) => sum + item.amount, 0) });
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    return result;
-  })();
+  const categoryData = getDashboardCategoryExpenses(state, currentMonth, summary?.categoryExpenses, expense);
+  const fallbackRange = getDashboardRange(activityFilter.period, new Date(), activityFilter.dateFrom, activityFilter.dateTo);
+  const fallbackActivity = getDashboardActivity(state, fallbackRange);
   const activityData = (summary?.activity ?? fallbackActivity).map((item) => ({
     ...item,
     label: new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" }).format(new Date(`${item.date}T00:00:00`)),
   }));
+  const activityTitle = activityFilter.period === "week" ? "Tren minggu berjalan" : activityFilter.period === "month" ? "Tren bulan berjalan" : "Tren rentang pilihan";
+  const customDateInvalid = activityFilter.period === "custom" && Boolean(activityFilter.dateFrom && activityFilter.dateTo && activityFilter.dateFrom > activityFilter.dateTo);
+  const categoryTotal = Math.max(0, expense);
+  const updateActivityPeriod = (period: DashboardPeriod) => {
+    if (period === "custom") {
+      const monthRange = getDashboardRange("month");
+      onActivityFilterChange({ period, dateFrom: activityFilter.dateFrom ?? monthRange.from, dateTo: activityFilter.dateTo ?? monthRange.to });
+      return;
+    }
+    onActivityFilterChange({ period });
+  };
 
   const budgetUsage = getBudgetUsage(state, currentMonth);
   const budgetTotal = budgetUsage.total;
@@ -115,7 +108,8 @@ export function DashboardView({ state, totalBalance, summary, balanceVisible, on
 
       <div className="dashboard-grid">
         <section className="panel activity-panel">
-          <div className="panel-heading"><div><p>AKTIVITAS PENGELUARAN</p><h3>{period === "week" ? "Tren minggu berjalan" : "Tren bulan berjalan"}</h3></div><select aria-label="Periode aktivitas pengeluaran" value={period} onChange={(event) => onPeriodChange(event.target.value as DashboardPeriod)}><option value="week">Minggu Ini</option><option value="month">Bulan Ini</option></select></div>
+          <div className="panel-heading activity-heading"><div><p>AKTIVITAS PENGELUARAN</p><h3>{activityTitle}</h3></div><div className="activity-filter-controls"><select aria-label="Periode aktivitas pengeluaran" value={activityFilter.period} onChange={(event) => updateActivityPeriod(event.target.value as DashboardPeriod)}><option value="week">Minggu Ini</option><option value="month">Bulan Ini</option><option value="custom">Bebas tanggal</option></select></div></div>
+          {activityFilter.period === "custom" && <div className={`activity-custom-panel ${customDateInvalid ? "invalid" : ""}`}><div><strong>Rentang tanggal</strong><small>Data otomatis mengikuti tanggal yang dipilih.</small></div><div className="activity-date-range"><label><span>Dari</span><input type="date" value={activityFilter.dateFrom ?? fallbackRange.from} onChange={(event) => onActivityFilterChange({ ...activityFilter, dateFrom: event.target.value })} /></label><label><span>Sampai</span><input type="date" value={activityFilter.dateTo ?? fallbackRange.to} onChange={(event) => onActivityFilterChange({ ...activityFilter, dateTo: event.target.value })} /></label></div><button type="button" className="secondary-button" onClick={() => onActivityFilterChange({ period: "month" })}>Reset</button>{customDateInvalid && <p>Tanggal awal tidak boleh melewati tanggal akhir. Sementara grafik memakai bulan berjalan.</p>}</div>}
           <div className="activity-chart">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData} margin={{ top: 15, right: 8, left: 0, bottom: 0 }}>
@@ -123,7 +117,7 @@ export function DashboardView({ state, totalBalance, summary, balanceVisible, on
                   <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#197253" stopOpacity={0.28} /><stop offset="100%" stopColor="#197253" stopOpacity={0} /></linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "var(--muted)", fontSize: 11 }} interval={period === "week" ? 0 : 4} dy={8} />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "var(--muted)", fontSize: 11 }} interval={activityFilter.period === "week" ? 0 : 4} dy={8} />
                 <Tooltip formatter={(value) => formatRupiah(Number(value))} contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 12 }} />
                 <Area type="monotone" dataKey="expense" stroke="#197253" strokeWidth={3} fill="url(#expenseGradient)" dot={{ r: 3, fill: "#197253", strokeWidth: 3, stroke: "var(--surface)" }} activeDot={{ r: 5 }} />
               </AreaChart>
@@ -138,11 +132,11 @@ export function DashboardView({ state, totalBalance, summary, balanceVisible, on
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart><Pie data={categoryData} dataKey="value" innerRadius={55} outerRadius={76} paddingAngle={3} stroke="none">{categoryData.map((entry) => <Cell key={entry.id} fill={entry.color} />)}</Pie></PieChart>
               </ResponsiveContainer>
-              <div><small>Total</small><strong>{formatRupiah(expense, true)}</strong></div>
+              <div><small>Total</small><strong>{formatRupiah(categoryTotal, true)}</strong></div>
             </div>
             <div className="category-legend">
               {categoryData.slice(0, 4).map((category) => (
-                <div key={category.id}><i style={{ background: category.color }} /><span>{category.name}</span><strong>{Math.round((category.value / Math.max(expense, 1)) * 100)}%</strong></div>
+                <div key={category.id}><i style={{ background: category.color }} /><span>{category.name}</span><strong>{Math.round((category.value / Math.max(categoryTotal, 1)) * 100)}%</strong></div>
               ))}
             </div>
           </div>

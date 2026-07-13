@@ -24,9 +24,11 @@ import {
 import { createDemoState } from "@/lib/demo-data";
 import { getDashboardRange, toLocalIsoDate } from "@/lib/date-ranges";
 import { formatRupiah } from "@/lib/format";
+import { markNotificationsRead } from "@/lib/notifications";
 import { enablePushNotifications } from "@/lib/push";
+import { DEMO_SESSION_COOKIE, isSessionExpired, parseSessionActivity, SESSION_ACTIVITY_COOKIE, SESSION_ACTIVITY_STORAGE_KEY, SESSION_ACTIVITY_THROTTLE_MS, SESSION_IDLE_TIMEOUT_SECONDS } from "@/lib/session";
 import { createClient as createSupabaseClient, hasSupabaseConfig } from "@/lib/supabase/client";
-import type { Account, Budget, DashboardPeriod, DashboardSummary, FinanceState, HouseholdMember, Transaction, ViewId } from "@/lib/types";
+import type { Account, Budget, DashboardActivityFilter, DashboardSummary, FinanceState, HouseholdMember, Transaction, ViewId } from "@/lib/types";
 import { AvatarModal } from "./avatar-modal";
 import { DashboardView } from "./dashboard-view";
 import { AccountsView, BudgetsView, TransactionsView } from "./detail-views";
@@ -50,6 +52,29 @@ const titles: Record<Exclude<ViewId, "dashboard">, { eyebrow: string; title: str
 };
 
 const STORAGE_KEY = "finansial-aku-demo-v1";
+
+function readCookie(name: string) {
+  return document.cookie.split("; ").find((part) => part.startsWith(`${name}=`))?.split("=")[1];
+}
+
+function writeSessionActivity(now = Date.now()) {
+  const value = String(now);
+  window.localStorage.setItem(SESSION_ACTIVITY_STORAGE_KEY, value);
+  document.cookie = `${SESSION_ACTIVITY_COOKIE}=${value}; path=/; max-age=${SESSION_IDLE_TIMEOUT_SECONDS}; SameSite=Lax`;
+  if (readCookie(DEMO_SESSION_COOKIE) === "1") document.cookie = `${DEMO_SESSION_COOKIE}=1; path=/; max-age=${SESSION_IDLE_TIMEOUT_SECONDS}; SameSite=Lax`;
+}
+
+function clearSessionActivityCookies() {
+  window.localStorage.removeItem(SESSION_ACTIVITY_STORAGE_KEY);
+  document.cookie = `${SESSION_ACTIVITY_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  document.cookie = `${DEMO_SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+}
+
+function readLastActivity() {
+  const storageValue = parseSessionActivity(window.localStorage.getItem(SESSION_ACTIVITY_STORAGE_KEY));
+  const cookieValue = parseSessionActivity(readCookie(SESSION_ACTIVITY_COOKIE));
+  return Math.max(storageValue ?? 0, cookieValue ?? 0) || null;
+}
 
 interface BackendContext {
   householdId: string;
@@ -77,8 +102,9 @@ export function FinanceApp() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [demoAvatarUrl, setDemoAvatarUrl] = useState<string>();
   const [dark, setDark] = useState(false);
+  const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [balanceVisible, setBalanceVisible] = useState(true);
-  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>("month");
+  const [dashboardActivityFilter, setDashboardActivityFilter] = useState<DashboardActivityFilter>({ period: "month" });
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary>();
   const [transactionRefresh, setTransactionRefresh] = useState(0);
   const [accountFilterRequest, setAccountFilterRequest] = useState<{ accountId: string; token: number }>();
@@ -106,6 +132,7 @@ export function FinanceApp() {
       setInviteCode(window.localStorage.getItem("finansial-demo-invite") ?? "");
       setDemoAvatarUrl(window.localStorage.getItem("finansial-demo-avatar") ?? undefined);
       hydrated.current = true;
+      setPreferencesHydrated(true);
     };
     const timer = window.setTimeout(hydrate, 0);
     return () => window.clearTimeout(timer);
@@ -130,7 +157,7 @@ export function FinanceApp() {
       const loadFinanceData = async () => {
         const today = toLocalIsoDate(new Date());
         const month = today.slice(0, 7) + "-01";
-        const activityRange = getDashboardRange(dashboardPeriod);
+        const activityRange = getDashboardRange(dashboardActivityFilter.period, new Date(), dashboardActivityFilter.dateFrom, dashboardActivityFilter.dateTo);
         const [accountsResult, categoriesResult, budgetsResult, notificationsResult, membersResult, householdResult, invitationResult, overviewResult] = await Promise.all([
           supabase.from("accounts").select("*").eq("household_id", householdId).is("archived_at", null).order("created_at"),
           supabase.from("categories").select("*").eq("household_id", householdId).is("archived_at", null).order("created_at"),
@@ -186,16 +213,18 @@ export function FinanceApp() {
     };
     void initialize();
     return () => { active = false; if (channel) void supabase.removeChannel(channel); };
-  }, [dashboardPeriod]);
+  }, [dashboardActivityFilter]);
 
   useEffect(() => {
+    if (!preferencesHydrated) return;
     document.documentElement.classList.toggle("dark", dark);
     window.localStorage.setItem("finansial-theme", dark ? "dark" : "light");
-  }, [dark]);
+  }, [dark, preferencesHydrated]);
 
   useEffect(() => {
+    if (!preferencesHydrated) return;
     window.localStorage.setItem("finansial-balance-visible", String(balanceVisible));
-  }, [balanceVisible]);
+  }, [balanceVisible, preferencesHydrated]);
 
   useEffect(() => {
     const closeMenu = (event: KeyboardEvent) => { if (event.key === "Escape") setProfileMenuOpen(false); };
@@ -211,6 +240,44 @@ export function FinanceApp() {
       window.removeEventListener("pointerdown", closeMenuOnOutsideClick);
     };
   }, []);
+
+  useEffect(() => {
+    let expired = false;
+    let lastActivityWrite = 0;
+    const expireSession = async () => {
+      if (expired) return;
+      expired = true;
+      clearSessionActivityCookies();
+      if (hasSupabaseConfig) await createSupabaseClient().auth.signOut({ scope: "local" });
+      router.replace("/login");
+      router.refresh();
+    };
+    const checkSession = () => {
+      if (isSessionExpired(readLastActivity())) void expireSession();
+    };
+    const recordActivity = () => {
+      const now = Date.now();
+      if (isSessionExpired(readLastActivity(), now)) { void expireSession(); return; }
+      if (now - lastActivityWrite < SESSION_ACTIVITY_THROTTLE_MS) return;
+      lastActivityWrite = now;
+      writeSessionActivity(now);
+    };
+    checkSession();
+    recordActivity();
+    const onVisibilityChange = () => { if (document.visibilityState === "visible") recordActivity(); };
+    window.addEventListener("pointerdown", recordActivity);
+    window.addEventListener("keydown", recordActivity);
+    window.addEventListener("focus", recordActivity);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = window.setInterval(checkSession, 60_000);
+    return () => {
+      window.removeEventListener("pointerdown", recordActivity);
+      window.removeEventListener("keydown", recordActivity);
+      window.removeEventListener("focus", recordActivity);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.clearInterval(interval);
+    };
+  }, [router]);
 
   useEffect(() => {
     if (!toast) return;
@@ -335,6 +402,24 @@ export function FinanceApp() {
     setToast(`Menampilkan transaksi ${account.name}`);
   };
 
+  const markNotificationRead = async (id: string) => {
+    const notification = state.notifications.find((item) => item.id === id);
+    if (!notification || notification.read) return;
+    setState((current) => ({ ...current, notifications: markNotificationsRead(current.notifications, [id]) }));
+    if (!backend) return;
+    const { error } = await createSupabaseClient().from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id).eq("user_id", backend.userId);
+    if (error) setToast(`Gagal menandai notifikasi: ${error.message}`);
+  };
+
+  const markAllNotificationsRead = async () => {
+    const unreadIds = state.notifications.filter((notification) => !notification.read).map((notification) => notification.id);
+    if (!unreadIds.length) return;
+    setState((current) => ({ ...current, notifications: markNotificationsRead(current.notifications) }));
+    if (!backend) return;
+    const { error } = await createSupabaseClient().from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", backend.userId).in("id", unreadIds);
+    if (error) setToast(`Gagal menandai semua notifikasi: ${error.message}`);
+  };
+
   const handleInvitation = async () => {
     if (!backend) {
       const demoCode = inviteCode || `DEMO-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
@@ -389,7 +474,7 @@ export function FinanceApp() {
 
   const logout = async () => {
     setProfileMenuOpen(false);
-    document.cookie = "finansial_demo=; path=/; max-age=0; SameSite=Lax";
+    clearSessionActivityCookies();
     if (backend && hasSupabaseConfig) {
       const { error } = await createSupabaseClient().auth.signOut({ scope: "local" });
       if (error) { setToast(`Gagal logout: ${error.message}`); return; }
@@ -475,7 +560,7 @@ export function FinanceApp() {
           </div>
         </header>
 
-        {view === "dashboard" && <DashboardView state={state} totalBalance={accountBalance} summary={dashboardSummary} balanceVisible={balanceVisible} onToggleBalance={() => setBalanceVisible((value) => !value)} period={dashboardPeriod} onPeriodChange={setDashboardPeriod} onAdd={() => setModalOpen(true)} onNavigate={navigate} />}
+        {view === "dashboard" && <DashboardView state={state} totalBalance={accountBalance} summary={dashboardSummary} balanceVisible={balanceVisible} onToggleBalance={() => setBalanceVisible((value) => !value)} activityFilter={dashboardActivityFilter} onActivityFilterChange={setDashboardActivityFilter} onAdd={() => setModalOpen(true)} onNavigate={navigate} />}
         {view === "transactions" && <TransactionsView state={state} householdId={backend?.householdId} members={memberList} refreshToken={transactionRefresh} accountFilterRequest={accountFilterRequest} onRefresh={() => reloadRef.current()} onToast={setToast} onImport={importTransactions} onAdd={() => setModalOpen(true)} onEdit={openEdit} onDelete={deleteTransaction} />}
         {view === "budgets" && <BudgetsView state={state} setState={setState} onAdd={() => setBudgetModalOpen(true)} onBudgetUpdate={updateBudget} onBudgetDelete={deleteBudget} />}
         {view === "accounts" && <AccountsView state={state} onAdd={() => { setEditingAccount(undefined); setAccountModalOpen(true); }} onEdit={(account) => { setEditingAccount(account); setAccountModalOpen(true); }} onDetail={(account, balance, transactions) => setAccountDetails({ account, balance, transactions })} />}
@@ -498,7 +583,7 @@ export function FinanceApp() {
       {notificationsOpen && (
         <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setNotificationsOpen(false)}>
           <aside className="notification-sheet">
-            <div className="sheet-heading"><div><p>AKTIVITAS BERSAMA</p><h2>Notifikasi</h2></div><button className="icon-button" onClick={() => setNotificationsOpen(false)}><X size={21} /></button></div>
+            <div className="sheet-heading"><div><p>AKTIVITAS BERSAMA</p><h2>Notifikasi</h2></div><div className="notification-actions"><button className="mark-read" disabled={unread === 0} onClick={() => void markAllNotificationsRead()}>Tandai semua</button><button className="icon-button" onClick={() => setNotificationsOpen(false)} aria-label="Tutup notifikasi"><X size={21} /></button></div></div>
             <button className="push-card" onClick={async () => {
               const result = await enablePushNotifications();
               setToast(result.message);
@@ -507,14 +592,13 @@ export function FinanceApp() {
             </button>
             <div className="notification-list">
               {state.notifications.map((item) => (
-                <button key={item.id} className={!item.read ? "unread" : ""} onClick={() => setState((current) => ({ ...current, notifications: current.notifications.map((notification) => notification.id === item.id ? { ...notification, read: true } : notification) }))}>
+                <button key={item.id} className={!item.read ? "unread" : ""} onClick={() => void markNotificationRead(item.id)}>
                   <UserAvatar name={item.actorName ?? "Anggota"} src={item.actorAvatarUrl} className="notification-avatar" />
                   <div><strong>{item.title}</strong><p>{item.body}</p><small>{item.time}</small></div>
                   {!item.read && <i />}
                 </button>
               ))}
             </div>
-            <button className="mark-read" onClick={() => setState((current) => ({ ...current, notifications: current.notifications.map((item) => ({ ...item, read: true })) }))}>Tandai semua sudah dibaca</button>
           </aside>
         </div>
       )}

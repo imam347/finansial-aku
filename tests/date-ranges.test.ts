@@ -18,6 +18,20 @@ test("dashboard month range covers the whole calendar month", () => {
   });
 });
 
+test("dashboard custom range uses valid inclusive dates", () => {
+  assert.deepEqual(getDashboardRange("custom", referenceDate, "2026-07-03", "2026-07-11"), {
+    from: "2026-07-03",
+    to: "2026-07-11",
+  });
+});
+
+test("dashboard custom range falls back to month when invalid", () => {
+  assert.deepEqual(getDashboardRange("custom", referenceDate, "2026-07-20", "2026-07-11"), {
+    from: "2026-07-01",
+    to: "2026-07-31",
+  });
+});
+
 test("transaction presets produce inclusive local date ranges", () => {
   assert.deepEqual(getTransactionDateRange("today", referenceDate), {
     from: "2026-07-08",

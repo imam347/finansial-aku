@@ -53,7 +53,13 @@ export interface AppNotification {
   actorAvatarUrl?: string;
 }
 
-export type DashboardPeriod = "week" | "month";
+export type DashboardPeriod = "week" | "month" | "custom";
+
+export interface DashboardActivityFilter {
+  period: DashboardPeriod;
+  dateFrom?: string;
+  dateTo?: string;
+}
 
 export interface DashboardSummary {
   totalBalance: number;

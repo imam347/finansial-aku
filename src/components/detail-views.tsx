@@ -125,6 +125,7 @@ export function TransactionsView({ state, householdId, members, refreshToken, ac
 
   const updateFilters = (patch: Partial<TransactionFilters>) => setFilters((current) => ({ ...current, ...patch }));
   const activeFilterCount = filters.accountIds.length + filters.categoryIds.length + filters.memberIds.length + filters.types.length + (filters.amountMin !== undefined ? 1 : 0) + (filters.amountMax !== undefined ? 1 : 0) + (filters.datePreset !== "month" ? 1 : 0);
+  const filterPanelId = "transaction-advanced-filters";
 
   useEffect(() => {
     if (!accountFilterRequest || appliedAccountFilterToken.current === accountFilterRequest.token) return;
@@ -138,6 +139,21 @@ export function TransactionsView({ state, householdId, members, refreshToken, ac
     }, 0);
     return () => window.clearTimeout(timer);
   }, [accountFilterRequest]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFiltersOpen(false);
+    };
+    const lockBodyScroll = window.matchMedia("(max-width: 760px)").matches;
+    const previousOverflow = document.body.style.overflow;
+    if (lockBodyScroll) document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      if (lockBodyScroll) document.body.style.overflow = previousOverflow;
+    };
+  }, [filtersOpen]);
 
   const getExportRows = async () => {
     if (total > 20_000) throw new Error("Hasil melebihi 20.000 baris. Persempit filter sebelum mengekspor.");
@@ -172,10 +188,10 @@ export function TransactionsView({ state, householdId, members, refreshToken, ac
         <div className="filter-tabs">
           {(["all", "expense", "income", "transfer"] as const).map((value) => <button key={value} className={(value === "all" ? !filters.types.length : filters.types[0] === value) ? "active" : ""} onClick={() => updateFilters({ types: value === "all" ? [] : [value] })}>{value === "all" ? "Semua" : value === "expense" ? "Pengeluaran" : value === "income" ? "Pemasukan" : "Transfer"}</button>)}
         </div>
-        <button type="button" className="secondary-button filter-button" onClick={() => setFiltersOpen((value) => !value)}><Filter size={17} /> Filter{activeFilterCount ? ` (${activeFilterCount})` : ""}</button>
+        <button type="button" className="secondary-button filter-button" aria-controls={filterPanelId} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}><Filter size={17} /> Filter{activeFilterCount ? ` (${activeFilterCount})` : ""}</button>
         <button className="primary-button" onClick={onAdd}><Plus size={18} /> Tambah</button>
       </section>
-      {filtersOpen && <section className="panel advanced-filters"><div className="advanced-filter-heading"><strong>Filter transaksi</strong><button type="button" onClick={() => setFiltersOpen(false)} aria-label="Tutup filter"><X size={18} /></button></div><div className="advanced-filter-grid">
+      {filtersOpen && <div className="transaction-filter-layer"><button type="button" className="transaction-filter-backdrop" onClick={() => setFiltersOpen(false)} aria-label="Tutup filter transaksi" /><section id={filterPanelId} className="panel advanced-filters" aria-label="Filter transaksi"><div className="advanced-filter-heading"><strong>Filter transaksi</strong><button type="button" onClick={() => setFiltersOpen(false)} aria-label="Tutup filter"><X size={18} /></button></div><div className="advanced-filter-grid">
         <label><span>Periode</span><select value={filters.datePreset} onChange={(event) => updateFilters({ datePreset: event.target.value as TransactionFilters["datePreset"] })}><option value="all">Semua tanggal</option><option value="today">Hari ini</option><option value="week">Minggu ini</option><option value="month">Bulan ini</option><option value="last30">30 hari terakhir</option><option value="custom">Rentang khusus</option></select></label>
         {filters.datePreset === "custom" && <><label><span>Dari</span><input type="date" value={filters.dateFrom ?? ""} onChange={(event) => updateFilters({ dateFrom: event.target.value || undefined })} /></label><label><span>Sampai</span><input type="date" value={filters.dateTo ?? ""} onChange={(event) => updateFilters({ dateTo: event.target.value || undefined })} /></label></>}
         <label><span>Akun</span><select value={filters.accountIds[0] ?? ""} onChange={(event) => updateFilters({ accountIds: event.target.value ? [event.target.value] : [] })}><option value="">Semua akun</option>{state.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
@@ -184,7 +200,7 @@ export function TransactionsView({ state, householdId, members, refreshToken, ac
         <label><span>Nominal minimum</span><input inputMode="numeric" value={filters.amountMin ?? ""} onChange={(event) => updateFilters({ amountMin: event.target.value ? Number(event.target.value.replace(/\D/g, "")) : undefined })} placeholder="0" /></label>
         <label><span>Nominal maksimum</span><input inputMode="numeric" value={filters.amountMax ?? ""} onChange={(event) => updateFilters({ amountMax: event.target.value ? Number(event.target.value.replace(/\D/g, "")) : undefined })} placeholder="Tanpa batas" /></label>
         <label><span>Urutan</span><select value={filters.sort} onChange={(event) => updateFilters({ sort: event.target.value as TransactionFilters["sort"] })}><option value="newest">Terbaru</option><option value="oldest">Terlama</option><option value="amount_desc">Nominal terbesar</option><option value="amount_asc">Nominal terkecil</option></select></label>
-      </div><button type="button" className="text-link reset-filter" onClick={() => setFilters(createDefaultTransactionFilters())}>Reset semua filter</button></section>}
+      </div><button type="button" className="text-link reset-filter" onClick={() => setFilters(createDefaultTransactionFilters())}>Reset semua filter</button></section></div>}
 
       <TransactionSheetTools accounts={state.accounts} categories={state.categories} getExportRows={getExportRows} findDuplicateReferences={findDuplicateReferences} onImport={async (rows) => { const result = await onImport(rows); await onRefresh(); return result; }} onToast={onToast} />
 
