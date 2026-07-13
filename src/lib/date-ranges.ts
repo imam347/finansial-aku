@@ -7,7 +7,14 @@ export function toLocalIsoDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-export function getDashboardRange(period: DashboardPeriod, now = new Date()) {
+function isIsoDate(value?: string) {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00`).getTime()));
+}
+
+export function getDashboardRange(period: DashboardPeriod, now = new Date(), customFrom?: string, customTo?: string) {
+  if (period === "custom" && isIsoDate(customFrom) && isIsoDate(customTo) && customFrom! <= customTo!) {
+    return { from: customFrom!, to: customTo! };
+  }
   const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const to = new Date(from);
   if (period === "week") {
