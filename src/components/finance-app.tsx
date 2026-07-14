@@ -24,6 +24,7 @@ import {
 import { createDemoState } from "@/lib/demo-data";
 import { getDashboardRange, toLocalIsoDate } from "@/lib/date-ranges";
 import { formatRupiah } from "@/lib/format";
+import { getAccountBalance } from "@/lib/account-balance";
 import { markNotificationsRead } from "@/lib/notifications";
 import { enablePushNotifications } from "@/lib/push";
 import { DEMO_SESSION_COOKIE, isSessionExpired, parseSessionActivity, SESSION_ACTIVITY_COOKIE, SESSION_ACTIVITY_STORAGE_KEY, SESSION_ACTIVITY_THROTTLE_MS, SESSION_IDLE_TIMEOUT_SECONDS } from "@/lib/session";
@@ -294,17 +295,8 @@ export function FinanceApp() {
     ? { eyebrow: new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long" }).format(now), title: `${greeting}, ${currentUserName.split(" ")[0]}!` }
     : titles[view];
   const calculatedAccountBalance = useMemo(() => {
-    return state.accounts.reduce((total, account) => {
-      const movement = state.transactions.reduce((sum, item) => {
-        if (item.type === "income" && item.accountId === account.id) return sum + item.amount;
-        if (item.type === "expense" && item.accountId === account.id) return sum - item.amount;
-        if (item.type === "transfer" && item.accountId === account.id) return sum - item.amount;
-        if (item.type === "transfer" && item.destinationAccountId === account.id) return sum + item.amount;
-        return sum;
-      }, 0);
-      return total + account.initialBalance + movement;
-    }, 0);
-  }, [state.accounts, state.transactions]);
+    return state.accounts.reduce((total, account) => total + getAccountBalance(state, account.id), 0);
+  }, [state]);
   const accountBalance = backend && dashboardSummary ? dashboardSummary.totalBalance : calculatedAccountBalance;
 
   const saveTransaction = async (transaction: Transaction) => {

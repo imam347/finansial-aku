@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { formatDate, formatRupiah } from "@/lib/format";
+import { getAccountBalance } from "@/lib/account-balance";
 import { getBudgetUsage } from "@/lib/budget-usage";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { DEFAULT_TRANSACTION_FILTERS, filterDemoTransactions, mapTransactionRow, transactionRpcParams } from "@/lib/transaction-query";
@@ -282,16 +283,7 @@ const accountIcon = (account: Account) => account.kind === "bank" ? Landmark : a
 
 export function AccountsView({ state, onAdd, onDetail, onEdit }: { state: FinanceState; onAdd: () => void; onDetail: (account: Account, balance: number, transactions: number) => void; onEdit: (account: Account) => void }) {
   const [openMenu, setOpenMenu] = useState<string>();
-  const accounts = useMemo(() => state.accounts.map((account) => {
-    const movement = state.transactions.reduce((sum, item) => {
-      if (item.type === "income" && item.accountId === account.id) return sum + item.amount;
-      if (item.type === "expense" && item.accountId === account.id) return sum - item.amount;
-      if (item.type === "transfer" && item.accountId === account.id) return sum - item.amount;
-      if (item.type === "transfer" && item.destinationAccountId === account.id) return sum + item.amount;
-      return sum;
-    }, 0);
-    return { ...account, balance: account.balance ?? account.initialBalance + movement };
-  }), [state.accounts, state.transactions]);
+  const accounts = useMemo(() => state.accounts.map((account) => ({ ...account, balance: getAccountBalance(state, account.id) })), [state]);
   const total = accounts.reduce((sum, item) => sum + item.balance, 0);
 
   return (
