@@ -2,21 +2,10 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, CalendarDays, Check, ChevronDown, Landmark, Smartphone, Wallet, X } from "lucide-react";
+import { getAccountBalance } from "@/lib/account-balance";
 import { dateKey, formatRupiah } from "@/lib/format";
 import type { FinanceState, Transaction, TransactionType } from "@/lib/types";
 import { CategoryIcon } from "./category-icon";
-
-function accountBalance(state: FinanceState, accountId: string) {
-  const account = state.accounts.find((item) => item.id === accountId);
-  if (!account) return 0;
-  return state.transactions.reduce((balance, item) => {
-    if (item.type === "income" && item.accountId === accountId) return balance + item.amount;
-    if (item.type === "expense" && item.accountId === accountId) return balance - item.amount;
-    if (item.type === "transfer" && item.accountId === accountId) return balance - item.amount;
-    if (item.type === "transfer" && item.destinationAccountId === accountId) return balance + item.amount;
-    return balance;
-  }, account.initialBalance);
-}
 
 function AccountPicker({ label, state, value, excludeId, onChange }: { label: string; state: FinanceState; value: string; excludeId?: string; onChange: (id: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -26,11 +15,11 @@ function AccountPicker({ label, state, value, excludeId, onChange }: { label: st
 
   return <div className="account-picker-field"><span>{label}</span><div className="account-picker">
     <button type="button" className="account-picker-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-      {selected ? <><i style={{ color: selected.color, background: `${selected.color}18` }}><Icon size={17} /></i><span><strong>{selected.name}</strong><small>{formatRupiah(accountBalance(state, selected.id), true)}</small></span></> : <span><strong>Pilih akun</strong></span>}<ChevronDown size={17} />
+      {selected ? <><i style={{ color: selected.color, background: `${selected.color}18` }}><Icon size={17} /></i><span><strong>{selected.name}</strong><small>{formatRupiah(getAccountBalance(state, selected.id), true)}</small></span></> : <span><strong>Pilih akun</strong></span>}<ChevronDown size={17} />
     </button>
     {open && <div className="account-picker-menu" role="listbox">{accounts.map((account) => {
       const AccountIcon = account.kind === "bank" ? Landmark : account.kind === "ewallet" ? Smartphone : Wallet;
-      return <button type="button" role="option" aria-selected={account.id === selected?.id} key={account.id} className={account.id === selected?.id ? "active" : ""} onClick={() => { onChange(account.id); setOpen(false); }}><i style={{ color: account.color, background: `${account.color}18` }}><AccountIcon size={17} /></i><span><strong>{account.name}</strong><small>{formatRupiah(accountBalance(state, account.id), true)}</small></span>{account.id === selected?.id && <Check size={15} />}</button>;
+      return <button type="button" role="option" aria-selected={account.id === selected?.id} key={account.id} className={account.id === selected?.id ? "active" : ""} onClick={() => { onChange(account.id); setOpen(false); }}><i style={{ color: account.color, background: `${account.color}18` }}><AccountIcon size={17} /></i><span><strong>{account.name}</strong><small>{formatRupiah(getAccountBalance(state, account.id), true)}</small></span>{account.id === selected?.id && <Check size={15} />}</button>;
     })}</div>}
   </div></div>;
 }
